@@ -1,6 +1,22 @@
-const setup = (exports, curveType) => {
-  const { mclEmsModule: mod, getRandomValues } = exports
+export enum CurveType {
+  BN254 = 0,
+  BN_SNARK1 = 4,
+  BLS12_381 = 5,
 
+  SECP224K1 = 101,
+  SECP256K1 = 102,
+  NIST_P192 = 105,
+  NIST_P224 = 106,
+  NIST_P256 = 107,
+}
+
+export type SetupDeps = {
+  mclEmsModule: any
+  getRandomValues: (a: Uint8Array) => Uint8Array
+  curveType: CurveType
+}
+
+export const setup = ({ mclEmsModule: mod, getRandomValues, curveType }: SetupDeps) => {
   const MCLBN_FP_UNIT_SIZE = 6
   const MCLBN_FR_UNIT_SIZE = 4
   const MCLBN_COMPILED_TIME_VAR = (MCLBN_FR_UNIT_SIZE * 10 + MCLBN_FP_UNIT_SIZE)
@@ -10,25 +26,25 @@ const setup = (exports, curveType) => {
   const MCLBN_G2_SIZE = MCLBN_FP_SIZE * 6
   const MCLBN_GT_SIZE = MCLBN_FP_SIZE * 12
 
-  const _malloc = size => {
+  const _malloc = (size: number) => {
     return mod._mclBnMalloc(size)
   }
-  const _free = pos => {
+  const _free = (pos: number) => {
     mod._mclBnFree(pos)
   }
-  const ptrToAsciiStr = (pos, n) => {
+  const ptrToAsciiStr = (pos: number, n: number) => {
     let s = ''
     for (let i = 0; i < n; i++) {
       s += String.fromCharCode(mod.HEAP8[pos + i])
     }
     return s
   }
-  const asciiStrToPtr = (pos, s) => {
+  const asciiStrToPtr = (pos: number, s: string) => {
     for (let i = 0; i < s.length; i++) {
       mod.HEAP8[pos + i] = s.charCodeAt(i)
     }
   }
-  const toHex = (a, start, n) => {
+  const toHex = (a: Uint8Array, start: number, n: number) => {
     let s = ''
     for (let i = 0; i < n; i++) {
       s += ('0' + a[start + i].toString(16)).slice(-2)
@@ -36,11 +52,11 @@ const setup = (exports, curveType) => {
     return s
   }
   // Uint8Array to hex string
-  const toHexStr = a => {
+  const toHexStr = (a: Uint8Array) => {
     return toHex(a, 0, a.length)
   }
   // hex string to Uint8Array
-  const fromHexStr = s => {
+  const fromHexStr = (s: string) => {
     if (s.length & 1) throw new Error('fromHexStr:length must be even ' + s.length)
     const n = s.length / 2
     const a = new Uint8Array(n)
@@ -50,8 +66,10 @@ const setup = (exports, curveType) => {
     return a
   }
 
-  const _wrapGetStr = (func, returnAsStr = true) => {
-    return (x, ioMode = 0) => {
+  type StringReader = (pos: number, maxBufSize: number, x: number, ioMode: number) => number
+
+  const _wrapGetStr = (func: StringReader, returnAsStr = true) => {
+    return (x: number, ioMode = 0) => {
       const maxBufSize = 3096
       const pos = _malloc(maxBufSize)
       const n = func(pos, maxBufSize, x, ioMode)
@@ -68,16 +86,19 @@ const setup = (exports, curveType) => {
       return s
     }
   }
-  const _wrapSerialize = func => {
+  const _wrapSerialize = (func: StringReader) => {
     return _wrapGetStr(func, false)
   }
-  const _wrapDeserialize = func => {
-    return (x, buf) => {
+
+  type StringWriter = (pos: number, maxBufSize: number, x: number) => number
+
+  const _wrapDeserialize = (func: StringWriter) => {
+    return (x: number, buf: any[]) => {
       const pos = _malloc(buf.length)
       mod.HEAP8.set(buf, pos)
       const r = func(x, pos, buf.length)
       _free(pos)
-      if (r === 0 || r !== buf.length) throw new Error('err _wrapDeserialize', buf)
+      if (r === 0 || r !== buf.length) throw new Error(`err _wrapDeserialize: ${r} != ${buf.length}`)
     }
   }
   /*
@@ -85,9 +106,8 @@ const setup = (exports, curveType) => {
     func(x0, ..., x_(n-1), buf, ioMode)
     => func(x0, ..., x_(n-1), pos, buf.length, ioMode)
   */
-  const _wrapInput = (func, argNum) => {
-    return function () {
-      const args = [...arguments]
+  const _wrapInput = (func: Function, argNum: number) => {
+    return function (...args: any[]) {
       const buf = args[argNum]
       const typeStr = Object.prototype.toString.apply(buf)
       if (['[object String]', '[object Uint8Array]', '[object Array]'].indexOf(typeStr) < 0) {
@@ -105,7 +125,7 @@ const setup = (exports, curveType) => {
       if (r) throw new Error('err _wrapInput ' + buf)
     }
   }
-  const _mulVec = (func, xVec, yVec, Cstr) => {
+  const _mulVec = (func: (zPos: number, xPos: number, yPos: number, n: number) => void, xVec: Common[], yVec: Common[], Cstr: any) => {
     const n = xVec.length
     if (n != yVec.length) throw new Error(`err _mulVec bad length ${n}, ${yVec.length}`)
     const xSize = xVec[0].a_.length
@@ -133,7 +153,7 @@ const setup = (exports, curveType) => {
   mod.mclBnFr_malloc = () => {
     return _malloc(MCLBN_FR_SIZE)
   }
-  const free = x => {
+  const free = (x: number) => {
     _free(x)
   }
   mod.mclBnFr_setLittleEndian = _wrapInput(mod._mclBnFr_setLittleEndian, 1)
@@ -194,14 +214,22 @@ const setup = (exports, curveType) => {
   /// ////////////////////////////////////////////////////////////
 
   class Common {
-    constructor (size) {
+    public a_: Uint32Array
+
+    constructor (size: number) {
       this.a_ = new Uint32Array(size / 4)
     }
-    deserializeHexStr (s) {
-      this.deserialize(fromHexStr(s))
+    deserialize (s: string) {
+      throw new Error('deserialize not implemented')
     }
-    serializeToHexStr () {
-      return toHexStr(this.serialize())
+    serialize (): string {
+      throw new Error('serialize not implemented')
+    }
+    deserializeHexStr (s: string) {
+      this.deserialize(fromHexStr(s) as any)
+    }
+    serializeToHexStr (): string {
+      return toHexStr(this.serialize() as any)
     }
     dump (msg = '') {
       console.log(msg + this.serializeToHexStr())
@@ -210,11 +238,11 @@ const setup = (exports, curveType) => {
       this.a_.fill(0)
     }
     // copy to allocated memory
-    copyToMem (pos) {
+    copyToMem (pos: number) {
       mod.HEAP32.set(this.a_, pos / 4)
     }
     // copy from allocated memory
-    copyFromMem (pos) {
+    copyFromMem (pos: number) {
       this.a_.set(mod.HEAP32.subarray(pos / 4, pos / 4 + this.a_.length))
     }
     // alloc new array
@@ -228,29 +256,29 @@ const setup = (exports, curveType) => {
       return pos
     }
     // save pos to a_
-    _save (pos) {
+    _save (pos: number) {
       this.a_.set(mod.HEAP32.subarray(pos / 4, pos / 4 + this.a_.length))
     }
     // save and free
-    _saveAndFree(pos) {
+    _saveAndFree(pos: number) {
       this._save(pos)
       _free(pos)
     }
     // set parameter (p1, p2 may be undefined)
-    _setter (func, p1, p2) {
+    _setter (func: Function, ...params: any[]) {
       const pos = this._alloc()
-      const r = func(pos, p1, p2)
+      const r = func(pos, ...params)
       this._saveAndFree(pos)
       if (r) throw new Error('_setter err')
     }
     // getter (p1, p2 may be undefined)
-    _getter (func, p1, p2) {
+    _getter (func: Function, ...params: any[]) {
       const pos = this._allocAndCopy()
-      const s = func(pos, p1, p2)
+      const s = func(pos, ...params)
       _free(pos)
       return s
     }
-    _isEqual (func, rhs) {
+    _isEqual (func: (xPos: number, yPos: number) => number, rhs: Common) {
       const xPos = this._allocAndCopy()
       const yPos = rhs._allocAndCopy()
       const r = func(xPos, yPos)
@@ -259,8 +287,8 @@ const setup = (exports, curveType) => {
       return r === 1
     }
     // func(y, this) and return y
-    _op1 (func) {
-      const y = new this.constructor()
+    _op1 (func: (yPos: number, xPos: number) => void) {
+      const y = new (this.constructor as any)()
       const xPos = this._allocAndCopy()
       const yPos = y._alloc()
       func(yPos, xPos)
@@ -269,8 +297,8 @@ const setup = (exports, curveType) => {
       return y
     }
     // func(z, this, y) and return z
-    _op2 (func, y, Cstr = null) {
-      const z = Cstr ? new Cstr() : new this.constructor()
+    _op2 (func: (zPos: number, xPos: number, yPos: number) => void, y: Common, Cstr: any = null) {
+      const z = Cstr ? new Cstr() : new (this.constructor as any)()
       const xPos = this._allocAndCopy()
       const yPos = y._allocAndCopy()
       const zPos = z._alloc()
@@ -281,30 +309,43 @@ const setup = (exports, curveType) => {
       return z
     }
     // devide Uint32Array a into n and chose the idx-th
-    _getSubArray (idx, n) {
+    _getSubArray (idx: number, n: number) {
       const d = this.a_.length / n
       return new Uint32Array(this.a_.buffer, d * idx * 4, d)
     }
     // set array lhs to idx
-    _setSubArray (lhs, idx, n) {
+    _setSubArray (lhs: Common, idx: number, n: number) {
       const d = this.a_.length / n
       this.a_.set(lhs.a_, d * idx)
     }
+    setHashOf(a: string | Uint8Array) {
+      throw new Error('setHashOf not implemented')
+    }
   }
-  class Fr extends Common {
+
+  interface IntType {
+    setInt(x: number): void;
+    isOne(): boolean;
+    setLittleEndian(a: Uint8Array): void;
+    setLittleEndianMod(a: Uint8Array): void;
+    setBigEndianMod(a: Uint8Array): void;
+    setByCSPRNG(): void;
+  }
+
+  class Fr extends Common implements IntType {
     constructor () {
       super(MCLBN_FR_SIZE)
     }
-    setInt (x) {
+    setInt (x: number) {
       this._setter(mod._mclBnFr_setInt32, x)
     }
-    deserialize (s) {
+    deserialize (s: string) {
       this._setter(mod.mclBnFr_deserialize, s)
     }
     serialize () {
       return this._getter(mod.mclBnFr_serialize)
     }
-    setStr (s, base = 0) {
+    setStr (s: string, base = 0) {
       this._setter(mod.mclBnFr_setStr, s, base)
     }
     getStr (base = 0) {
@@ -316,69 +357,72 @@ const setup = (exports, curveType) => {
     isOne () {
       return this._getter(mod._mclBnFr_isOne) === 1
     }
-    isEqual (rhs) {
+    isEqual (rhs: Fr) {
       return this._isEqual(mod._mclBnFr_isEqual, rhs)
     }
-    setLittleEndian (s) {
-      this._setter(mod.mclBnFr_setLittleEndian, s)
+    setLittleEndian (a: Uint8Array) {
+      this._setter(mod.mclBnFr_setLittleEndian, a)
     }
-    setLittleEndianMod (s) {
-      this._setter(mod.mclBnFr_setLittleEndianMod, s)
+    setLittleEndianMod (a: Uint8Array) {
+      this._setter(mod.mclBnFr_setLittleEndianMod, a)
     }
-    setBigEndianMod (s) {
-      this._setter(mod.mclBnFr_setBigEndianMod, s)
+    setBigEndianMod (a: Uint8Array) {
+      this._setter(mod.mclBnFr_setBigEndianMod, a)
     }
     setByCSPRNG () {
       const a = new Uint8Array(MCLBN_FR_SIZE)
       getRandomValues(a)
       this.setLittleEndian(a)
     }
-    setHashOf (s) {
+    setHashOf (s: string) {
       this._setter(mod.mclBnFr_setHashOf, s)
     }
   }
-  const deserializeHexStrToFr = s => {
+  const deserializeHexStrToFr = (s: string) => {
     const r = new Fr()
     r.deserializeHexStr(s)
     return r
   }
-  class Fp extends Common {
+  class Fp extends Common implements IntType {
     constructor () {
       super(MCLBN_FP_SIZE)
     }
-    setInt (x) {
+    setInt (x: number) {
       this._setter(mod._mclBnFp_setInt32, x)
     }
-    deserialize (s) {
+    deserialize (s: string) {
       this._setter(mod.mclBnFp_deserialize, s)
     }
     serialize () {
       return this._getter(mod.mclBnFp_serialize)
     }
-    setStr (s, base = 0) {
+    setStr (s: string, base = 0) {
       this._setter(mod.mclBnFp_setStr, s, base)
     }
     getStr (base = 0) {
       return this._getter(mod.mclBnFp_getStr, base)
     }
-    isEqual (rhs) {
+    isOne () {
+      return this._getter(mod._mclBnFr_isOne) === 1
+    }
+    isEqual (rhs: this) {
       return this._isEqual(mod._mclBnFp_isEqual, rhs)
     }
-    setLittleEndian (s) {
-      this._setter(mod.mclBnFp_setLittleEndian, s)
+    setLittleEndian (a: Uint8Array) {
+      this._setter(mod.mclBnFp_setLittleEndian, a)
     }
-    setLittleEndianMod (s) {
-      this._setter(mod.mclBnFp_setLittleEndianMod, s)
+    setLittleEndianMod (a: Uint8Array) {
+      this._setter(mod.mclBnFp_setLittleEndianMod, a)
     }
-    setBigEndianMod (s) {
-      this._setter(mod.mclBnFp_setBigEndianMod, s)
+    setBigEndianMod (a: Uint8Array) {
+      this._setter(mod.mclBnFp_setBigEndianMod, a)
     }
     setByCSPRNG () {
       const a = new Uint8Array(MCLBN_FP_SIZE)
       getRandomValues(a)
       this.setLittleEndian(a)
     }
-    setHashOf (s) {
+    setHashOf (s: string) {
       this._setter(mod.mclBnFp_setHashOf, s)
     }
     mapToG1 () {
@@ -391,7 +435,7 @@ const setup = (exports, curveType) => {
      return y
     }
   }
-  const deserializeHexStrToFp = s => {
+  const deserializeHexStrToFp = (s: string) => {
     const r = new Fp()
     r.deserializeHexStr(s)
     return r
@@ -400,20 +444,20 @@ const setup = (exports, curveType) => {
     constructor () {
       super(MCLBN_FP_SIZE * 2)
     }
-    setInt (x, y) {
+    setInt (x: number, y: number) {
       const v = new Fp()
       v.setInt(x)
       this.set_a(v)
       v.setInt(y)
       this.set_b(v)
     }
-    deserialize (s) {
+    deserialize (s: string) {
       this._setter(mod.mclBnFp2_deserialize, s)
     }
     serialize () {
       return this._getter(mod.mclBnFp2_serialize)
     }
-    isEqual (rhs) {
+    isEqual (rhs: this) {
       return this._isEqual(mod._mclBnFp2_isEqual, rhs)
     }
     /*
@@ -429,10 +473,10 @@ const setup = (exports, curveType) => {
       r.a_ = this._getSubArray(1, 2)
       return r
     }
-    set_a(v) {
+    set_a(v: Fp) {
       this._setSubArray(v, 0, 2)
     }
-    set_b(v) {
+    set_b(v: Fp) {
       this._setSubArray(v, 1, 2)
     }
     mapToG2 () {
@@ -445,7 +489,7 @@ const setup = (exports, curveType) => {
      return y
     }
   }
-  const deserializeHexStrToFp2 = s => {
+  const deserializeHexStrToFp2 = (s: string) => {
     const r = new Fp2()
     r.deserializeHexStr(s)
     return r
@@ -454,13 +498,13 @@ const setup = (exports, curveType) => {
     constructor () {
       super(MCLBN_G1_SIZE)
     }
-    deserialize (s) {
+    deserialize (s: string) {
       this._setter(mod.mclBnG1_deserialize, s)
     }
     serialize () {
       return this._getter(mod.mclBnG1_serialize)
     }
-    setStr (s, base = 0) {
+    setStr (s: string, base = 0) {
       this._setter(mod.mclBnG1_setStr, s, base)
     }
     getStr (base = 0) {
@@ -484,13 +528,13 @@ const setup = (exports, curveType) => {
       r.a_ = this._getSubArray(2, 3)
       return r
     }
-    setX (v) {
+    setX (v: Fp) {
       this._setSubArray(v, 0, 3)
     }
-    setY (v) {
+    setY (v: Fp) {
       this._setSubArray(v, 1, 3)
     }
-    setZ (v) {
+    setZ (v: Fp) {
       this._setSubArray(v, 2, 3)
     }
     isZero () {
@@ -502,29 +546,29 @@ const setup = (exports, curveType) => {
     isValidOrder () {
       return this._getter(mod._mclBnG1_isValidOrder) === 1
     }
-    isEqual (rhs) {
+    isEqual (rhs: this) {
       return this._isEqual(mod._mclBnG1_isEqual, rhs)
     }
-    setHashOf (s) {
+    setHashOf (s: string) {
       this._setter(mod.mclBnG1_hashAndMapTo, s)
     }
   }
-  const deserializeHexStrToG1 = s => {
+  const deserializeHexStrToG1 = (s: string) => {
     const r = new G1()
     r.deserializeHexStr(s)
     return r
   }
-  const setETHserialization = (ETHserialization) => {
+  const setETHserialization = (ETHserialization: boolean) => {
     mod._mclBn_setETHserialization(ETHserialization ? 1 : 0)
   }
   // mode = mcl.IRTF for Ethereum 2.0 spec
-  const setMapToMode = (mode) => {
+  const setMapToMode = (mode: number) => {
     mod._mclBn_setMapToMode(mode)
   }
-  const verifyOrderG1 = (doVerify) => {
+  const verifyOrderG1 = (doVerify: boolean) => {
     mod._mclBn_verifyOrderG1(doVerify ? 1 : 0)
   }
-  const verifyOrderG2 = (doVerify) => {
+  const verifyOrderG2 = (doVerify: boolean) => {
     mod._mclBn_verifyOrderG2(doVerify ? 1 : 0)
   }
   const getBasePointG1 = () => {
@@ -541,13 +585,13 @@ const setup = (exports, curveType) => {
     constructor () {
       super(MCLBN_G2_SIZE)
     }
-    deserialize (s) {
+    deserialize (s: string) {
       this._setter(mod.mclBnG2_deserialize, s)
     }
     serialize () {
       return this._getter(mod.mclBnG2_serialize)
     }
-    setStr (s, base = 0) {
+    setStr (s: string, base = 0) {
       this._setter(mod.mclBnG2_setStr, s, base)
     }
     getStr (base = 0) {
@@ -571,13 +615,13 @@ const setup = (exports, curveType) => {
       r.a_ = this._getSubArray(2, 3)
       return r
     }
-    setX (v) {
+    setX (v: Fp2) {
       this._setSubArray(v, 0, 3)
     }
-    setY (v) {
+    setY (v: Fp2) {
       this._setSubArray(v, 1, 3)
     }
-    setZ (v) {
+    setZ (v: Fp2) {
       this._setSubArray(v, 2, 3)
     }
     isZero () {
@@ -589,14 +633,14 @@ const setup = (exports, curveType) => {
     isValidOrder () {
       return this._getter(mod._mclBnG2_isValidOrder) === 1
     }
-    isEqual (rhs) {
+    isEqual (rhs: this) {
       return this._isEqual(mod._mclBnG2_isEqual, rhs)
     }
-    setHashOf (s) {
+    setHashOf (s: string) {
       this._setter(mod.mclBnG2_hashAndMapTo, s)
     }
   }
-  const deserializeHexStrToG2 = s => {
+  const deserializeHexStrToG2 = (s: string) => {
     const r = new G2()
     r.deserializeHexStr(s)
     return r
@@ -605,16 +649,16 @@ const setup = (exports, curveType) => {
     constructor () {
       super(MCLBN_GT_SIZE)
     }
-    setInt (x) {
+    setInt (x: number) {
       this._setter(mod._mclBnGT_setInt32, x)
     }
-    deserialize (s) {
+    deserialize (s: string) {
       this._setter(mod.mclBnGT_deserialize, s)
     }
     serialize () {
       return this._getter(mod.mclBnGT_serialize)
     }
-    setStr (s, base = 0) {
+    setStr (s: string, base = 0) {
       this._setter(mod.mclBnGT_setStr, s, base)
     }
     getStr (base = 0) {
@@ -626,17 +670,18 @@ const setup = (exports, curveType) => {
     isOne () {
       return this._getter(mod._mclBnGT_isOne) === 1
     }
-    isEqual (rhs) {
+    isEqual (rhs: this) {
       return this._isEqual(mod._mclBnGT_isEqual, rhs)
     }
   }
-  const deserializeHexStrToGT = s => {
+  const deserializeHexStrToGT = (s: string) => {
     const r = new GT()
     r.deserializeHexStr(s)
     return r
   }
   class PrecomputedG2 {
-    constructor (Q) {
+    p: number | null
+    constructor (Q: G2) {
       if (!(Q instanceof G2)) throw new Error('PrecomputedG2:bad type')
       const byteSize = mod._mclBn_getUint64NumToPrecompute() * 8
       this.p = _malloc(byteSize)
@@ -649,11 +694,11 @@ const setup = (exports, curveType) => {
       to avoid memory leak
     */
     destroy () {
-      _free(this.p)
+      if (this.p != null) _free(this.p)
       this.p = null
     }
   }
-  const neg = x => {
+  const neg = (x: Common) => {
     if (x instanceof Fr) {
       return x._op1(mod._mclBnFr_neg)
     }
@@ -674,7 +719,7 @@ const setup = (exports, curveType) => {
     }
     throw new Error('neg:bad type')
   }
-  const sqr = x => {
+  const sqr = (x: Common) => {
     if (x instanceof Fp) {
       return x._op1(mod._mclBnFp_sqr)
     }
@@ -689,7 +734,7 @@ const setup = (exports, curveType) => {
     }
     throw new Error('sqr:bad type')
   }
-  const inv = x => {
+  const inv = (x: Common) => {
     if (x instanceof Fp) {
       return x._op1(mod._mclBnFp_inv)
     }
@@ -704,7 +749,7 @@ const setup = (exports, curveType) => {
     }
     throw new Error('inv:bad type')
   }
-  const normalize = x => {
+  const normalize = (x: Common) => {
     if (x instanceof G1) {
       return x._op1(mod._mclBnG1_normalize)
     }
@@ -713,7 +758,7 @@ const setup = (exports, curveType) => {
     }
     throw new Error('normalize:bad type')
   }
-  const add = (x, y) => {
+  const add = (x: Common, y: Common) => {
     if (x.constructor !== y.constructor) throw new Error('add:mismatch type')
     if (x instanceof Fp) {
       return x._op2(mod._mclBnFp_add, y)
@@ -735,7 +780,7 @@ const setup = (exports, curveType) => {
     }
     throw new Error('add:bad type')
   }
-  const sub = (x, y) => {
+  const sub = (x: Common, y: Common) => {
     if (x.constructor !== y.constructor) throw new Error('sub:mismatch type')
     if (x instanceof Fp) {
       return x._op2(mod._mclBnFp_sub, y)
@@ -763,7 +808,7 @@ const setup = (exports, curveType) => {
     G2 * Fr ; scalar mul
     GT * GT
   */
-  const mul = (x, y) => {
+  const mul = (x: Common, y: Common) => {
     if (x instanceof Fp && y instanceof Fp) {
       return x._op2(mod._mclBnFp_mul, y)
     }
@@ -788,17 +833,17 @@ const setup = (exports, curveType) => {
     sum G1 * Fr ; scalar mul
     sum G2 * Fr ; scalar mul
   */
-  const mulVec = (xVec, yVec) => {
+  const mulVec = <X extends G1 | G2>(xVec: X[], yVec: Fr[]) => {
     if (xVec.length == 0) throw new Error('mulVec:zero array')
     if (xVec[0] instanceof G1 && yVec[0] instanceof Fr) {
-      return _mulVec(mod._mclBnG1_mulVec, xVec, yVec, G1)
+      return _mulVec(mod._mclBnG1_mulVec, xVec, yVec, G1) as G1
     }
     if (xVec[0] instanceof G2 && yVec[0] instanceof Fr) {
-      return _mulVec(mod._mclBnG2_mulVec, xVec, yVec, G2)
+      return _mulVec(mod._mclBnG2_mulVec, xVec, yVec, G2) as G2
     }
     throw new Error('mulVec:mismatch type')
   }
-  const div = (x, y) => {
+  const div = (x: Common, y: Common) => {
     if (x.constructor !== y.constructor) throw new Error('div:mismatch type')
     if (x instanceof Fp) {
       return x._op2(mod._mclBnFp_div, y)
@@ -814,52 +859,52 @@ const setup = (exports, curveType) => {
     }
     throw new Error('div:bad type')
   }
-  const dbl = x => {
+  const dbl = <X extends G1 | G2>(x: X) => {
     if (x instanceof G1) {
-      return x._op1(mod._mclBnG1_dbl)
+      return x._op1(mod._mclBnG1_dbl) as G1
     }
     if (x instanceof G2) {
-      return x._op1(mod._mclBnG2_dbl)
+      return x._op1(mod._mclBnG2_dbl) as G2
     }
     throw new Error('dbl:bad type')
   }
-  const hashToFr = s => {
+  const hashToFr = (s: string) => {
     const x = new Fr()
     x.setHashOf(s)
     return x
   }
-  const hashAndMapToG1 = s => {
+  const hashAndMapToG1 = (s: string) => {
     const x = new G1()
     x.setHashOf(s)
     return x
   }
-  const hashAndMapToG2 = s => {
+  const hashAndMapToG2 = (s: string) => {
     const x = new G2()
     x.setHashOf(s)
     return x
   }
   // pow(GT x, Fr y)
-  const pow = (x, y) => {
+  const pow = (x: GT, y: Fr) => {
     if (x instanceof GT && y instanceof Fr) {
       return x._op2(mod._mclBnGT_pow, y)
     }
     throw new Error('pow:bad type')
   }
   // pairing(G1 P, G2 Q)
-  const pairing = (P, Q) => {
+  const pairing = (P: G1, Q: G2) => {
     if (P instanceof G1 && Q instanceof G2) {
       return P._op2(mod._mclBn_pairing, Q, GT)
     }
     throw new Error('exports.pairing:bad type')
   }
   // millerLoop(G1 P, G2 Q)
-  const millerLoop = (P, Q) => {
+  const millerLoop = (P: G1, Q: G2) => {
     if (P instanceof G1 && Q instanceof G2) {
       return P._op2(mod._mclBn_millerLoop, Q, GT)
     }
     throw new Error('exports.millerLoop:bad type')
   }
-  const precomputedMillerLoop = (P, Qcoeff) => {
+  const precomputedMillerLoop = (P: G1, Qcoeff: PrecomputedG2) => {
     if (!(P instanceof G1 && Qcoeff instanceof PrecomputedG2)) throw new Error('exports.precomputedMillerLoop:bad type')
     const e = new GT()
     const PPos = P._allocAndCopy()
@@ -870,7 +915,7 @@ const setup = (exports, curveType) => {
     return e
   }
   // millerLoop(P1, Q1coeff) * millerLoop(P2, Q2coeff)
-  const precomputedMillerLoop2 = (P1, Q1coeff, P2, Q2coeff) => {
+  const precomputedMillerLoop2 = (P1: G1, Q1coeff: PrecomputedG2, P2: G1, Q2coeff: PrecomputedG2) => {
     if (!(P1 instanceof G1 && Q1coeff instanceof PrecomputedG2 && P2 instanceof G1 && Q2coeff instanceof PrecomputedG2)) throw new Error('exports.precomputedMillerLoop2mixed:bad type')
     const e = new GT()
     const P1Pos = P1._allocAndCopy()
@@ -883,7 +928,7 @@ const setup = (exports, curveType) => {
     return e
   }
   // millerLoop(P1, Q1) * millerLoop(P2, Q2coeff)
-  const precomputedMillerLoop2mixed = (P1, Q1, P2, Q2coeff) => {
+  const precomputedMillerLoop2mixed = (P1: G1, Q1: G2, P2: G1, Q2coeff: PrecomputedG2) => {
     if (!(P1 instanceof G1 && Q1 instanceof G2 && P2 instanceof G1 && Q2coeff instanceof PrecomputedG2)) throw new Error('exports.precomputedMillerLoop2mixed:bad type')
     const e = new GT()
     const P1Pos = P1._allocAndCopy()
@@ -897,7 +942,7 @@ const setup = (exports, curveType) => {
     _free(P2Pos)
     return e
   }
-  const finalExp = x => {
+  const finalExp = (x: GT) => {
     if (x instanceof GT) {
       return x._op1(mod._mclBn_finalExp)
     }
@@ -907,6 +952,7 @@ const setup = (exports, curveType) => {
   if (r) throw new Error('_mclBn_init err ' + r)
  
   return {
+    Common,
     ptrToAsciiStr,
     asciiStrToPtr,
     toHex,
@@ -954,29 +1000,38 @@ const setup = (exports, curveType) => {
   }
 }
 
-const _mclSetupFactory = (createModule, getRandomValues) => {
-  const constants = {
-    BN254: 0,
-    BN381_1: 1,
-    BN381_2: 2,
-    BN462: 3,
-    BN_SNARK1: 4,
-    BLS12_381: 5,
-    
-    SECP224K1: 101,
-    SECP256K1: 102,
-    SECP384R1: 103,
-    NIST_P192: 105,
-    NIST_P224: 106,
-    NIST_P256: 107,
-    IRTF: 5, /* MCL_MAP_TO_MODE_HASH_TO_CURVE_07 */
-    EC_PROJ: 1024, /* flag for G1/G2.getStr */
-  }
-  const exports = {
+export const constants = {
+  BN254: 0,
+  BN381_1: 1,
+  BN381_2: 2,
+  BN462: 3,
+  BN_SNARK1: 4,
+  BLS12_381: 5,
+  
+  SECP224K1: 101,
+  SECP256K1: 102,
+  SECP384R1: 103,
+  NIST_P192: 105,
+  NIST_P224: 106,
+  NIST_P256: 107,
+  IRTF: 5, /* MCL_MAP_TO_MODE_HASH_TO_CURVE_07 */
+  EC_PROJ: 1024, /* flag for G1/G2.getStr */
+} as const
+
+export type ExportMembers = typeof constants & Partial<ReturnType<typeof setup>> & {
+  init: (curveType?: CurveType) => Promise<void>
+  
+  curveType?: CurveType
+  getRandomValues?: any
+  mod?: any
+}
+
+export default (createModule: any, getRandomValues: any) => {
+  const exports: ExportMembers = {
     ...constants,
     init: async (curveType = constants.BN254) => {
       const mod = await createModule({
-        cryptoGetRandomValues: (p, n) => {
+        cryptoGetRandomValues: (p: number, n: number) => {
           const a = new Uint8Array(n)
           getRandomValues(a)
           for (let i = 0; i < n; i++) {
@@ -989,11 +1044,9 @@ const _mclSetupFactory = (createModule, getRandomValues) => {
         curveType,
         getRandomValues,
         mod,
-        ...setup({ mclEmsModule: mod, getRandomValues }, curveType),
+        ...setup({ mclEmsModule: mod, getRandomValues, curveType }),
       })
     }
   }
   return exports
 }
-
-module.exports = _mclSetupFactory
