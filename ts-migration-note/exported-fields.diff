@@ -1,6 +1,6 @@
---- exported-fields.orig.dump	2021-11-11 14:12:10.000000000 +0900
-+++ exported-fields.ts.dump	2021-11-11 14:12:13.000000000 +0900
-@@ -1,532 +1,62 @@
+--- exported-fields.orig.dump	2021-11-11 15:23:00.000000000 +0900
++++ exported-fields.ts.dump	2021-11-11 15:23:03.000000000 +0900
+@@ -1,532 +1,65 @@
  {
 -  BN254: 0,
 -  BN381_1: 1,
@@ -532,27 +532,30 @@
 -  precomputedMillerLoop2: [Function: precomputedMillerLoop2],
 -  precomputedMillerLoop2mixed: [Function: precomputedMillerLoop2mixed],
 -  finalExp: [Function: finalExp]
-+  free: [Getter],
-+  init: [Getter],
-+  mod: [Getter],
 +  BN254: [Getter],
++  BN381_1: [Getter],
++  BN381_2: [Getter],
++  BN462: [Getter],
 +  BN_SNARK1: [Getter],
 +  BLS12_381: [Getter],
 +  SECP224K1: [Getter],
 +  SECP256K1: [Getter],
++  SECP384R1: [Getter],
 +  NIST_P192: [Getter],
 +  NIST_P224: [Getter],
 +  NIST_P256: [Getter],
 +  IRTF: [Getter],
 +  EC_PROJ: [Getter],
-+  MCLBN_FP_UNIT_SIZE: [Getter],
-+  MCLBN_FR_UNIT_SIZE: [Getter],
-+  MCLBN_COMPILED_TIME_VAR: [Getter],
-+  MCLBN_FP_SIZE: [Getter],
-+  MCLBN_FR_SIZE: [Getter],
-+  MCLBN_G1_SIZE: [Getter],
-+  MCLBN_G2_SIZE: [Getter],
-+  MCLBN_GT_SIZE: [Getter],
++  getRandomValues: [Getter],
++  init: [Getter],
++  mod: [Getter],
++  fromHexStr: [Getter],
++  free: [Getter],
++  ptrToAsciiStr: [Getter],
++  toHex: [Getter],
++  toHexStr: [Getter],
++  asciiStrToPtr: [Getter],
++  curveType: [Getter],
 +  Common: [Getter],
 +  Fr: [Getter],
 +  deserializeHexStrToFr: [Getter],

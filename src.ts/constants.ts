@@ -1,10 +1,14 @@
 import CurveType from './CurveType'
 
 export const BN254 = CurveType.BN254
+export const BN381_1 = 1
+export const BN381_2 = 2
+export const BN462 = 3
 export const BN_SNARK1 = CurveType.BN_SNARK1
 export const BLS12_381 = CurveType.BLS12_381
 export const SECP224K1 = CurveType.SECP224K1
 export const SECP256K1 = CurveType.SECP256K1
+export const SECP384R1 = 103
 export const NIST_P192 = CurveType.NIST_P192
 export const NIST_P224 = CurveType.NIST_P224
 export const NIST_P256 = CurveType.NIST_P256

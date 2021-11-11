@@ -7,7 +7,7 @@ import { MCLBN_FP_SIZE, MCLBN_FR_SIZE, MCLBN_G1_SIZE, MCLBN_G2_SIZE, MCLBN_GT_SI
 // TODO: typing
 type MclEmsModule = any
 
-export let mod: MclEmsModule | undefined
+export let mod: MclEmsModule
 
 export const _malloc = (size: number) => {
   return mod._mclBnMalloc(size)
@@ -17,20 +17,21 @@ export const _free = (pos: number) => {
   mod._mclBnFree(pos)
 }
 
-const ptrToAsciiStr = (pos: number, n: number) => {
+export const ptrToAsciiStr = (pos: number, n: number) => {
   let s = ''
   for (let i = 0; i < n; i++) {
     s += String.fromCharCode(mod.HEAP8[pos + i])
   }
   return s
 }
-const asciiStrToPtr = (pos: number, s: string) => {
+
+export const asciiStrToPtr = (pos: number, s: string) => {
   for (let i = 0; i < s.length; i++) {
     mod.HEAP8[pos + i] = s.charCodeAt(i)
   }
 }
 
-const toHex = (a: Uint8Array, start: number, n: number) => {
+export const toHex = (a: Uint8Array, start: number, n: number) => {
   let s = ''
   for (let i = 0; i < n; i++) {
     s += ('0' + a[start + i].toString(16)).slice(-2)
@@ -178,6 +179,9 @@ const addWrappedMethods = (mod: MclEmsModule) => {
   mod.mclBnGT_getStr = _wrapGetStr(mod._mclBnGT_getStr)
 }
 
+/** given `CurveType` of last `initializeMcl` call */
+export let initializedCurveType: CurveType
+
 export const initializeMcl = async (curveType = CurveType.BN254) => {
   mod = await createModule({
     cryptoGetRandomValues: (p: number, n: number) => {
@@ -189,6 +193,7 @@ export const initializeMcl = async (curveType = CurveType.BN254) => {
     }
   })
   
+  initializedCurveType = curveType
   addWrappedMethods(mod)
 
   const r = mod._mclBn_init(curveType, MCLBN_COMPILED_TIME_VAR)

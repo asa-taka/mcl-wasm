@@ -1,0 +1,10 @@
+--- exported-field-names.orig.dump	2021-11-11 15:23:00.000000000 +0900
++++ exported-field-names.ts.dump	2021-11-11 15:23:03.000000000 +0900
+@@ -5,6 +5,7 @@
+   'BN381_2',
+   'BN462',
+   'BN_SNARK1',
++  'Common',
+   'EC_PROJ',
+   'Fp',
+   'Fp2',
