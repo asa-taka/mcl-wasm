@@ -1,3 +1,5 @@
+import getRandomValues from './getRandomValues'
+
 export enum CurveType {
   BN254 = 0,
   BN_SNARK1 = 4,
@@ -12,11 +14,10 @@ export enum CurveType {
 
 export type SetupDeps = {
   mclEmsModule: any
-  getRandomValues: (a: Uint8Array) => Uint8Array
   curveType: CurveType
 }
 
-export const setup = ({ mclEmsModule: mod, getRandomValues, curveType }: SetupDeps) => {
+export const setup = ({ mclEmsModule: mod, curveType }: SetupDeps) => {
   const MCLBN_FP_UNIT_SIZE = 6
   const MCLBN_FR_UNIT_SIZE = 4
   const MCLBN_COMPILED_TIME_VAR = (MCLBN_FR_UNIT_SIZE * 10 + MCLBN_FP_UNIT_SIZE)
@@ -1026,7 +1027,7 @@ type ExportMembers = typeof constants & Partial<ReturnType<typeof setup>> & {
   mod?: any
 }
 
-export default (createModule: any, getRandomValues: any) => {
+export default (createModule: any) => {
   const exp: ExportMembers = {
     ...constants,
     init: async (curveType = constants.BN254) => {
@@ -1044,7 +1045,7 @@ export default (createModule: any, getRandomValues: any) => {
         curveType,
         getRandomValues,
         mod,
-        ...setup({ mclEmsModule: mod, getRandomValues, curveType }),
+        ...setup({ mclEmsModule: mod, curveType }),
       })
     }
   }
