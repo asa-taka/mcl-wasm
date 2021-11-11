@@ -1,6 +1,3 @@
-const mclCreateModule = require('./mcl_c.js')
-import mclSetupFactory from './mcl'
-
-const mcl = mclSetupFactory(mclCreateModule)
-
-module.exports = mcl
+export * from './constants'
+export * from './value-types'
+export { initializeMcl as init, mod, fromHexStr, _free as free } from './mcl'
