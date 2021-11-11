@@ -1,6 +1,6 @@
---- exported-fields.orig.dump	2021-11-11 15:23:00.000000000 +0900
-+++ exported-fields.ts.dump	2021-11-11 15:23:03.000000000 +0900
-@@ -1,532 +1,65 @@
+--- exported-fields.orig.dump	2021-11-11 17:48:29.000000000 +0900
++++ exported-fields.ts.dump	2021-11-11 17:48:32.000000000 +0900
+@@ -1,532 +1,67 @@
  {
 -  BN254: 0,
 -  BN381_1: 1,
@@ -557,12 +557,14 @@
 +  asciiStrToPtr: [Getter],
 +  curveType: [Getter],
 +  Common: [Getter],
++  IntType: [Getter],
 +  Fr: [Getter],
 +  deserializeHexStrToFr: [Getter],
 +  Fp: [Getter],
 +  deserializeHexStrToFp: [Getter],
 +  Fp2: [Getter],
 +  deserializeHexStrToFp2: [Getter],
++  EllipticType: [Getter],
 +  G1: [Getter],
 +  deserializeHexStrToG1: [Getter],
 +  setETHserialization: [Getter],

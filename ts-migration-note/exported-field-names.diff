@@ -1,10 +1,20 @@
---- exported-field-names.orig.dump	2021-11-11 15:23:00.000000000 +0900
-+++ exported-field-names.ts.dump	2021-11-11 15:23:03.000000000 +0900
-@@ -5,6 +5,7 @@
+--- exported-field-names.orig.dump	2021-11-11 17:48:29.000000000 +0900
++++ exported-field-names.ts.dump	2021-11-11 17:48:32.000000000 +0900
+@@ -5,7 +5,9 @@
    'BN381_2',
    'BN462',
    'BN_SNARK1',
 +  'Common',
    'EC_PROJ',
++  'EllipticType',
    'Fp',
    'Fp2',
+   'Fr',
+@@ -13,6 +15,7 @@
+   'G2',
+   'GT',
+   'IRTF',
++  'IntType',
+   'NIST_P192',
+   'NIST_P224',
+   'NIST_P256',

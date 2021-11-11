@@ -3,17 +3,12 @@ import { MCLBN_FP_SIZE, MCLBN_FR_SIZE, MCLBN_G1_SIZE, MCLBN_G2_SIZE, MCLBN_GT_SI
 import getRandomValues from './getRandomValues'
 import { _free, toHexStr, fromHexStr, _malloc } from './mcl'
 
-export class Common {
+export abstract class Common {
+  /** @internal */
   public a_: Uint32Array
 
   constructor (size: number) {
     this.a_ = new Uint32Array(size / 4)
-  }
-  deserialize (s: string) {
-    throw new Error('Unimplemented abstract method: deserialize')
-  }
-  serialize (): string {
-    throw new Error('Unimplemented abstract method: serialize')
   }
   deserializeHexStr (s: string) {
     this.deserialize(fromHexStr(s) as any)
@@ -35,39 +30,51 @@ export class Common {
   copyFromMem (pos: number) {
     this.a_.set(getMcl().HEAP32.subarray(pos / 4, pos / 4 + this.a_.length))
   }
-  // alloc new array
+
+  abstract setStr(s: string, base?: number): void
+  abstract getStr(base?: number): string
+  abstract isEqual(rhs: this): boolean
+  abstract isZero(): boolean
+  abstract deserialize(v: Uint8Array): void
+  abstract serialize(): Uint8Array
+  abstract setHashOf(a: string | Uint8Array): void
+
+  // internal methods
+
+  /** @internal alloc new array */
   _alloc () {
     return _malloc(this.a_.length * 4)
   }
-  // alloc and copy a_ to getMcl().HEAP32[pos / 4]
+  /** @internal alloc and copy a_ to getMcl().HEAP32[pos / 4] */
   _allocAndCopy () {
     const pos = this._alloc()
     getMcl().HEAP32.set(this.a_, pos / 4)
     return pos
   }
-  // save pos to a_
+  /** @internal save pos to a_ */
   _save (pos: number) {
     this.a_.set(getMcl().HEAP32.subarray(pos / 4, pos / 4 + this.a_.length))
   }
-  // save and free
+  /** @internal save and free */
   _saveAndFree(pos: number) {
     this._save(pos)
     _free(pos)
   }
-  // set parameter (p1, p2 may be undefined)
-  _setter (func: Function, ...params: any[]) {
+  /** @internal set parameter */
+  _setter (func: Function, ...params: any[]): void {
     const pos = this._alloc()
     const r = func(pos, ...params)
     this._saveAndFree(pos)
     if (r) throw new Error('_setter err')
   }
-  // getter (p1, p2 may be undefined)
-  _getter (func: Function, ...params: any[]) {
+  /** @internal getter */
+  _getter (func: Function, ...params: any[]): any {
     const pos = this._allocAndCopy()
     const s = func(pos, ...params)
     _free(pos)
     return s
   }
+  /** @internal */
   _isEqual (func: (xPos: number, yPos: number) => number, rhs: Common) {
     const xPos = this._allocAndCopy()
     const yPos = rhs._allocAndCopy()
@@ -76,7 +83,7 @@ export class Common {
     _free(xPos)
     return r === 1
   }
-  // func(y, this) and return y
+  /** @internal func(y, this) and return y */
   _op1 (func: (yPos: number, xPos: number) => void) {
     const y = new (this.constructor as any)()
     const xPos = this._allocAndCopy()
@@ -86,7 +93,7 @@ export class Common {
     _free(xPos)
     return y
   }
-  // func(z, this, y) and return z
+  /** @internal func(z, this, y) and return z */
   _op2 (func: (zPos: number, xPos: number, yPos: number) => void, y: Common, Cstr: any = null) {
     const z = Cstr ? new Cstr() : new (this.constructor as any)()
     const xPos = this._allocAndCopy()
@@ -98,47 +105,44 @@ export class Common {
     _free(xPos)
     return z
   }
-  // devide Uint32Array a into n and chose the idx-th
+  /** @internal devide Uint32Array a into n and chose the idx-th */
   _getSubArray (idx: number, n: number) {
     const d = this.a_.length / n
     return new Uint32Array(this.a_.buffer, d * idx * 4, d)
   }
-  // set array lhs to idx
+  /** @internal set array lhs to idx */
   _setSubArray (lhs: Common, idx: number, n: number) {
     const d = this.a_.length / n
     this.a_.set(lhs.a_, d * idx)
   }
-  setHashOf(a: string | Uint8Array) {
-    throw new Error('Unimplemented abstract method: setHashOf')
-  }
 }
 
-export type IntType = Common & {
-  setInt(x: number): void;
-  isOne(): boolean;
-  setLittleEndian(a: Uint8Array): void;
-  setLittleEndianMod(a: Uint8Array): void;
-  setBigEndianMod(a: Uint8Array): void;
-  setByCSPRNG(): void;
+export abstract class IntType extends Common {
+  abstract setInt(x: number): void;
+  abstract isOne(): boolean;
+  abstract setLittleEndian(a: Uint8Array): void;
+  abstract setLittleEndianMod(a: Uint8Array): void;
+  abstract setBigEndianMod(a: Uint8Array): void;
+  abstract setByCSPRNG(): void;
 }
 
-export class Fr extends Common implements IntType {
+export class Fr extends IntType {
   constructor () {
     super(MCLBN_FR_SIZE)
   }
   setInt (x: number) {
     this._setter(getMcl()._mclBnFr_setInt32, x)
   }
-  deserialize (s: string) {
+  deserialize (s: Uint8Array) {
     this._setter(getMcl().mclBnFr_deserialize, s)
   }
-  serialize () {
+  serialize (): Uint8Array {
     return this._getter(getMcl().mclBnFr_serialize)
   }
   setStr (s: string, base = 0) {
     this._setter(getMcl().mclBnFr_setStr, s, base)
   }
-  getStr (base = 0) {
+  getStr (base = 0): string {
     return this._getter(getMcl().mclBnFr_getStr, base)
   }
   isZero () {
@@ -147,7 +151,7 @@ export class Fr extends Common implements IntType {
   isOne () {
     return this._getter(getMcl()._mclBnFr_isOne) === 1
   }
-  isEqual (rhs: Fr) {
+  isEqual (rhs: this): boolean {
     return this._isEqual(getMcl()._mclBnFr_isEqual, rhs)
   }
   setLittleEndian (a: Uint8Array) {
@@ -180,29 +184,32 @@ export const deserializeHexStrToFr = (s: string) => {
   return r
 }
 
-export class Fp extends Common implements IntType {
+export class Fp extends IntType {
   constructor () {
     super(MCLBN_FP_SIZE)
   }
   setInt (x: number) {
     this._setter(getMcl()._mclBnFp_setInt32, x)
   }
-  deserialize (s: string) {
+  deserialize (s: Uint8Array) {
     this._setter(getMcl().mclBnFp_deserialize, s)
   }
-  serialize () {
+  serialize (): Uint8Array {
     return this._getter(getMcl().mclBnFp_serialize)
   }
   setStr (s: string, base = 0) {
     this._setter(getMcl().mclBnFp_setStr, s, base)
   }
-  getStr (base = 0) {
+  getStr (base = 0): string {
     return this._getter(getMcl().mclBnFp_getStr, base)
   }
   isOne () {
     return this._getter(getMcl()._mclBnFr_isOne) === 1
   }
-  isEqual (rhs: this) {
+  isZero (): boolean {
+    throw new Error('Fp.isZero is not supported')
+  }
+  isEqual (rhs: this): boolean {
     return this._isEqual(getMcl()._mclBnFp_isEqual, rhs)
   }
   setLittleEndian (a: Uint8Array) {
@@ -255,14 +262,26 @@ export class Fp2 extends Common {
     v.setInt(y)
     this.set_b(v)
   }
-  deserialize (s: string) {
+  deserialize (s: Uint8Array) {
     this._setter(getMcl().mclBnFp2_deserialize, s)
   }
-  serialize () {
+  serialize (): Uint8Array {
     return this._getter(getMcl().mclBnFp2_serialize)
   }
-  isEqual (rhs: this) {
+  getStr(): string {
+    throw new Error('Fp2.getStr is not supported')
+  }
+  setStr(): string {
+    throw new Error('Fp2.setStr is not supported')
+  }
+  isEqual (rhs: this): boolean {
     return this._isEqual(getMcl()._mclBnFp2_isEqual, rhs)
+  }
+  isZero (): boolean {
+    throw new Error('Fp2.isZero is not supported')
+  }
+  setHashOf (s: string | Uint8Array) {
+    throw new Error('Fp2.setHashOf is not supported')
   }
   /*
     x = a + bi where a, b in Fp and i^2 = -1
@@ -300,26 +319,26 @@ export const deserializeHexStrToFp2 = (s: string) => {
   return r
 }
 
-export type EllipticType = Common & {
-  normalize(): void;
-  isValid(): boolean;
-  isValidOrder(): boolean;
+export abstract class EllipticType extends Common {
+  abstract normalize(): void;
+  abstract isValid(): boolean;
+  abstract isValidOrder(): boolean;
 }
 
-export class G1 extends Common implements EllipticType {
+export class G1 extends EllipticType {
   constructor () {
     super(MCLBN_G1_SIZE)
   }
-  deserialize (s: string) {
+  deserialize (s: Uint8Array) {
     this._setter(getMcl().mclBnG1_deserialize, s)
   }
-  serialize () {
+  serialize (): Uint8Array {
     return this._getter(getMcl().mclBnG1_serialize)
   }
   setStr (s: string, base = 0) {
     this._setter(getMcl().mclBnG1_setStr, s, base)
   }
-  getStr (base = 0) {
+  getStr (base = 0): string {
     return this._getter(getMcl().mclBnG1_getStr, base)
   }
   normalize () {
@@ -358,7 +377,7 @@ export class G1 extends Common implements EllipticType {
   isValidOrder () {
     return this._getter(getMcl()._mclBnG1_isValidOrder) === 1
   }
-  isEqual (rhs: this) {
+  isEqual (rhs: this): boolean {
     return this._isEqual(getMcl()._mclBnG1_isEqual, rhs)
   }
   setHashOf (s: string | Uint8Array) {
@@ -400,20 +419,20 @@ export const getBasePointG1 = () => {
   return x
 }
 
-export class G2 extends Common implements EllipticType {
+export class G2 extends EllipticType {
   constructor () {
     super(MCLBN_G2_SIZE)
   }
-  deserialize (s: string) {
+  deserialize (s: Uint8Array) {
     this._setter(getMcl().mclBnG2_deserialize, s)
   }
-  serialize () {
+  serialize (): Uint8Array {
     return this._getter(getMcl().mclBnG2_serialize)
   }
   setStr (s: string, base = 0) {
     this._setter(getMcl().mclBnG2_setStr, s, base)
   }
-  getStr (base = 0) {
+  getStr (base = 0): string {
     return this._getter(getMcl().mclBnG2_getStr, base)
   }
   normalize () {
@@ -452,7 +471,7 @@ export class G2 extends Common implements EllipticType {
   isValidOrder () {
     return this._getter(getMcl()._mclBnG2_isValidOrder) === 1
   }
-  isEqual (rhs: this) {
+  isEqual (rhs: this): boolean {
     return this._isEqual(getMcl()._mclBnG2_isEqual, rhs)
   }
   setHashOf (s: string | Uint8Array) {
@@ -473,16 +492,16 @@ export class GT extends Common {
   setInt (x: number) {
     this._setter(getMcl()._mclBnGT_setInt32, x)
   }
-  deserialize (s: string) {
+  deserialize (s: Uint8Array) {
     this._setter(getMcl().mclBnGT_deserialize, s)
   }
-  serialize () {
+  serialize (): Uint8Array {
     return this._getter(getMcl().mclBnGT_serialize)
   }
   setStr (s: string, base = 0) {
     this._setter(getMcl().mclBnGT_setStr, s, base)
   }
-  getStr (base = 0) {
+  getStr (base = 0): string {
     return this._getter(getMcl().mclBnGT_getStr, base)
   }
   isZero () {
@@ -491,8 +510,11 @@ export class GT extends Common {
   isOne () {
     return this._getter(getMcl()._mclBnGT_isOne) === 1
   }
-  isEqual (rhs: this) {
+  isEqual (rhs: this): boolean {
     return this._isEqual(getMcl()._mclBnGT_isEqual, rhs)
+  }
+  setHashOf (s: string | Uint8Array) {
+    throw new Error('Fp2.setHashOf is not supported')
   }
 }
 
@@ -503,7 +525,9 @@ export const deserializeHexStrToGT = (s: string) => {
 }
 
 export class PrecomputedG2 {
+  /** @internal */
   p: number | null
+
   constructor (Q: G2) {
     if (!(Q instanceof G2)) throw new Error('PrecomputedG2:bad type')
     const byteSize = getMcl()._mclBn_getUint64NumToPrecompute() * 8
