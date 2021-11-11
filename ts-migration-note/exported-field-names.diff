@@ -1,5 +1,5 @@
---- exported-field-names.orig.dump	2021-11-11 17:48:29.000000000 +0900
-+++ exported-field-names.ts.dump	2021-11-11 17:48:32.000000000 +0900
+--- exported-field-names.orig.dump	2021-11-11 17:56:14.000000000 +0900
++++ exported-field-names.ts.dump	2021-11-11 17:56:17.000000000 +0900
 @@ -5,7 +5,9 @@
    'BN381_2',
    'BN462',

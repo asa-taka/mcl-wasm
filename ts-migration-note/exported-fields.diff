@@ -1,5 +1,5 @@
---- exported-fields.orig.dump	2021-11-11 17:48:29.000000000 +0900
-+++ exported-fields.ts.dump	2021-11-11 17:48:32.000000000 +0900
+--- exported-fields.orig.dump	2021-11-11 17:56:14.000000000 +0900
++++ exported-fields.ts.dump	2021-11-11 17:56:17.000000000 +0900
 @@ -1,532 +1,67 @@
  {
 -  BN254: 0,
