@@ -1,16 +1,6 @@
 import getRandomValues from './getRandomValues'
-
-export enum CurveType {
-  BN254 = 0,
-  BN_SNARK1 = 4,
-  BLS12_381 = 5,
-
-  SECP224K1 = 101,
-  SECP256K1 = 102,
-  NIST_P192 = 105,
-  NIST_P224 = 106,
-  NIST_P256 = 107,
-}
+import CurveType from './CurveType'
+import * as constants from './constants'
 
 export type SetupDeps = {
   mclEmsModule: any
@@ -1000,24 +990,6 @@ export const setup = ({ mclEmsModule: mod, curveType }: SetupDeps) => {
     finalExp,
   }
 }
-
-const constants = {
-  BN254: 0,
-  BN381_1: 1,
-  BN381_2: 2,
-  BN462: 3,
-  BN_SNARK1: 4,
-  BLS12_381: 5,
-  
-  SECP224K1: 101,
-  SECP256K1: 102,
-  SECP384R1: 103,
-  NIST_P192: 105,
-  NIST_P224: 106,
-  NIST_P256: 107,
-  IRTF: 5, /* MCL_MAP_TO_MODE_HASH_TO_CURVE_07 */
-  EC_PROJ: 1024, /* flag for G1/G2.getStr */
-} as const
 
 type ExportMembers = typeof constants & Partial<ReturnType<typeof setup>> & {
   init: (curveType?: CurveType) => Promise<void>
