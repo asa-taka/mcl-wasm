@@ -5,6 +5,4 @@ import mclSetupFactory from './mcl'
 const getRandomValues = crypto.randomFillSync
 const mcl = mclSetupFactory(mclCreateModule, getRandomValues)
 
-mcl.Common
-
-export default mcl
+module.exports = mcl

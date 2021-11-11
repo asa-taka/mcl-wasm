@@ -6,7 +6,7 @@
   "scripts": {
     "lint": "standard src/mcl.js test/test.js",
     "tsc": "tsc",
-    "test": "node test/test.js"
+    "test": "tsc && node test/test.js && node test/eth-test.js"
   },
   "types": "src/index.d.ts",
   "repository": {

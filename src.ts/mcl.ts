@@ -1000,7 +1000,7 @@ export const setup = ({ mclEmsModule: mod, getRandomValues, curveType }: SetupDe
   }
 }
 
-export const constants = {
+const constants = {
   BN254: 0,
   BN381_1: 1,
   BN381_2: 2,
@@ -1018,7 +1018,7 @@ export const constants = {
   EC_PROJ: 1024, /* flag for G1/G2.getStr */
 } as const
 
-export type ExportMembers = typeof constants & Partial<ReturnType<typeof setup>> & {
+type ExportMembers = typeof constants & Partial<ReturnType<typeof setup>> & {
   init: (curveType?: CurveType) => Promise<void>
   
   curveType?: CurveType
@@ -1027,7 +1027,7 @@ export type ExportMembers = typeof constants & Partial<ReturnType<typeof setup>>
 }
 
 export default (createModule: any, getRandomValues: any) => {
-  const exports: ExportMembers = {
+  const exp: ExportMembers = {
     ...constants,
     init: async (curveType = constants.BN254) => {
       const mod = await createModule({
@@ -1040,7 +1040,7 @@ export default (createModule: any, getRandomValues: any) => {
         }
       })
 
-      Object.assign(exports, {
+      Object.assign(exp, {
         curveType,
         getRandomValues,
         mod,
@@ -1048,5 +1048,5 @@ export default (createModule: any, getRandomValues: any) => {
       })
     }
   }
-  return exports
+  return exp
 }
