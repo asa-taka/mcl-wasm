@@ -3,5 +3,7 @@ export { default as getRandomValues } from './getRandomValues'
 export { initializeMcl as init, fromHexStr, free, toHex, toHexStr, initializedCurveType as curveType } from './mcl'
 export * from './value-types'
 
+export type { CurveType } from './constants'
+
 /** @internal for only testing */
 export { mod } from './mcl'

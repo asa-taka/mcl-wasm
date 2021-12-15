@@ -1,7 +1,8 @@
-const mcl = require('../dist/index.js')
-const assert = require('assert')
+import assert from 'assert'
 
-function appendZeroToRight (s, n) {
+import * as mcl from '..'
+
+function appendZeroToRight (s: string, n: number) {
   let z = ""
   for (let i = 0; i < n - s.length; i++) {
     z += "0"
@@ -118,7 +119,7 @@ function testVerifyG1 () {
   }
 }
 
-function Fp2set (s) {
+function Fp2set (s: string) {
   let [as, bs] = s.split(' ')
   let a = new mcl.Fp()
   let b = new mcl.Fp()

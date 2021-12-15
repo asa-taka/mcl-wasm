@@ -2,7 +2,7 @@ import { mod, _free, toHexStr, fromHexStr, _malloc } from './mcl'
 import { MCLBN_FP_SIZE, MCLBN_FR_SIZE, MCLBN_G1_SIZE, MCLBN_G2_SIZE, MCLBN_GT_SIZE } from './constants'
 import getRandomValues from './getRandomValues'
 
-abstract class Common {
+export abstract class Common {
   /** @internal */
   public a_: Uint32Array
 
